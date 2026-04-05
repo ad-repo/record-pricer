@@ -21,15 +21,18 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.cardview.widget.CardView
 import androidx.lifecycle.lifecycleScope
+import com.google.gson.Gson
 import com.recordpricer.api.AnnotateRequest
 import com.recordpricer.api.DiscogsApi
 import com.recordpricer.api.DiscogsRelease
-import com.recordpricer.api.EbayApi
 import com.recordpricer.api.VisionApi
 import com.recordpricer.api.VisionFeature
 import com.recordpricer.api.VisionImage
 import com.recordpricer.api.VisionRequest
 import com.recordpricer.databinding.ActivityMainBinding
+import com.recordpricer.db.AppDatabase
+import com.recordpricer.db.FavoriteEntity
+import com.recordpricer.db.SavedSearchEntity
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import retrofit2.Retrofit
@@ -41,6 +44,8 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private var lastEbayQuery = ""
+    private var currentPhotoPath: String? = null
+    private var currentSearchQuery: String = ""
 
     private val visionApi: VisionApi by lazy {
         Retrofit.Builder().baseUrl("https://vision.googleapis.com/")
@@ -49,10 +54,6 @@ class MainActivity : AppCompatActivity() {
     private val discogsApi: DiscogsApi by lazy {
         Retrofit.Builder().baseUrl("https://api.discogs.com/")
             .addConverterFactory(GsonConverterFactory.create()).build().create(DiscogsApi::class.java)
-    }
-    private val ebayApi: EbayApi by lazy {
-        Retrofit.Builder().baseUrl("https://svcs.ebay.com/")
-            .addConverterFactory(GsonConverterFactory.create()).build().create(EbayApi::class.java)
     }
 
     private val cameraLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -75,6 +76,10 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        binding.btnToggleManual.text = "🔍"
+        binding.btnHistory.text      = "🕐"
+        binding.btnSettings.text     = "🔧"
+
         binding.btnScan.setOnClickListener {
             cameraLauncher.launch(Intent(this, CameraActivity::class.java))
         }
@@ -89,6 +94,10 @@ class MainActivity : AppCompatActivity() {
         }
         binding.btnManualSearch.setOnClickListener { runManualSearch() }
         binding.etAlbum.setOnEditorActionListener { _, _, _ -> runManualSearch(); true }
+
+        binding.btnHistory.setOnClickListener {
+            startActivity(Intent(this, SavedSearchesActivity::class.java))
+        }
     }
 
     override fun onResume() {
@@ -111,6 +120,8 @@ class MainActivity : AppCompatActivity() {
         val imm = getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
         imm.hideSoftInputFromWindow(binding.etAlbum.windowToken, 0)
         lastEbayQuery = query
+        currentSearchQuery = query
+        currentPhotoPath = null
         binding.etArtist.text?.clear()
         binding.etAlbum.text?.clear()
         reset(); setStatus("Searching...")
@@ -134,6 +145,8 @@ class MainActivity : AppCompatActivity() {
                 val results = discogsApi.search(query = barcode, type = "release", token = KeysPrefs.discogs(this@MainActivity))
                     .results?.let { vinylOnly(it) } ?: emptyList()
                 lastEbayQuery = barcode
+                currentSearchQuery = barcode
+                currentPhotoPath = null
                 showCandidates(results)
             } catch (e: Exception) {
                 Log.e("RecordPricer", "Barcode error", e)
@@ -155,6 +168,8 @@ class MainActivity : AppCompatActivity() {
                 }
                 setStatus("Searching Discogs...")
                 lastEbayQuery = query
+                currentSearchQuery = query
+                currentPhotoPath = photoPath
                 val results = discogsApi.search(query = query, token = KeysPrefs.discogs(this@MainActivity))
                     .results?.let { vinylOnly(it) } ?: emptyList()
                 showCandidates(results)
@@ -198,6 +213,23 @@ class MainActivity : AppCompatActivity() {
             binding.candidateContainer.addView(buildCandidateCard(release, i == 0))
         }
         binding.candidateContainer.visibility = View.VISIBLE
+
+        // Auto-save every search with full result data
+        val querySnapshot = currentSearchQuery
+        val photoSnapshot = currentPhotoPath
+        val top = candidates.firstOrNull()
+        lifecycleScope.launch {
+            AppDatabase.get(this@MainActivity).savedSearchDao().insert(
+                SavedSearchEntity(
+                    queryString  = querySnapshot,
+                    photoPath    = photoSnapshot,
+                    topTitle     = top?.title,
+                    topDiscogsId = top?.id,
+                    topUri       = top?.uri,
+                    resultsJson  = Gson().toJson(candidates)
+                )
+            )
+        }
     }
 
     private fun buildCandidateCard(release: DiscogsRelease, isBest: Boolean): CardView {
@@ -216,13 +248,48 @@ class MainActivity : AppCompatActivity() {
             setPadding(16.dp, 12.dp, 16.dp, 12.dp)
         }
 
-        // Artist - Title (bold)
-        inner.addView(TextView(this).apply {
-            text = release.title ?: "Unknown"
-            textSize = 15f
-            setTextColor(0xFFFFFFFF.toInt())
-            setTypeface(null, Typeface.BOLD)
-        })
+        // Header row: title (bold) + star toggle
+        val btnStar = TextView(this).apply {
+            text = "☆"
+            textSize = 20f
+            setTextColor(0xFFFFAA00.toInt())
+            setPadding(8.dp, 0, 0, 0)
+        }
+        val headerRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            addView(TextView(this@MainActivity).apply {
+                text = release.title ?: "Unknown"
+                textSize = 15f
+                setTextColor(0xFFFFFFFF.toInt())
+                setTypeface(null, Typeface.BOLD)
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            })
+            addView(btnStar)
+        }
+        inner.addView(headerRow)
+
+        val releaseId = release.id
+        if (releaseId != null) {
+            lifecycleScope.launch {
+                val db = AppDatabase.get(this@MainActivity)
+                val isFav = db.favoriteDao().isFavorite(releaseId) > 0
+                btnStar.text = if (isFav) "★" else "☆"
+                btnStar.setOnClickListener {
+                    lifecycleScope.launch {
+                        if (db.favoriteDao().isFavorite(releaseId) > 0) {
+                            db.favoriteDao().deleteById(releaseId)
+                            btnStar.text = "☆"
+                        } else {
+                            db.favoriteDao().insert(FavoriteEntity(releaseId, release.title ?: "Unknown"))
+                            btnStar.text = "★"
+                        }
+                    }
+                }
+            }
+        }
 
         // Edition details line
         val details = buildEditionDetails(release)
@@ -284,11 +351,15 @@ class MainActivity : AppCompatActivity() {
         val tvEbay = TextView(this).apply {
             textSize = 14f; setTextColor(0xFFCF6679.toInt()); setPadding(0, 6.dp, 0, 0); visibility = View.GONE
         }
+        val tvEbayLink = TextView(this).apply {
+            textSize = 12f; setPadding(0, 4.dp, 0, 0); visibility = View.GONE
+        }
 
         inner.addView(divider)
         inner.addView(pricingBar)
         inner.addView(tvDiscogs)
         inner.addView(tvEbay)
+        inner.addView(tvEbayLink)
         card.addView(inner)
 
         card.setOnClickListener {
@@ -299,6 +370,7 @@ class MainActivity : AppCompatActivity() {
                 pricingBar.visibility = View.GONE
                 tvDiscogs.visibility = View.GONE
                 tvEbay.visibility = View.GONE
+                tvEbayLink.visibility = View.GONE
                 card.setCardBackgroundColor(0xFF1E1E1E.toInt())
                 return@setOnClickListener
             }
@@ -309,9 +381,10 @@ class MainActivity : AppCompatActivity() {
             tvDiscogs.visibility = View.GONE
             tvEbay.visibility = View.GONE
 
+            val querySnapshot = lastEbayQuery
             lifecycleScope.launch {
                 val statsDeferred = async { runCatching { discogsApi.marketplaceStats(id, KeysPrefs.discogs(this@MainActivity)) }.getOrNull() }
-                val ebayDeferred  = async { fetchEbaySoldPrices(lastEbayQuery) }
+                val ebayDeferred  = async { EbayRepository.fetchPrices(this@MainActivity, querySnapshot) }
                 val stats = statsDeferred.await()
                 val ebay  = ebayDeferred.await()
 
@@ -320,9 +393,22 @@ class MainActivity : AppCompatActivity() {
                 tvDiscogs.text = if (forSale > 0 && stats?.lowest_price?.value != null)
                     "Discogs: from \$%.2f  ($forSale for sale)".format(stats.lowest_price.value)
                 else "Discogs: no current listings"
-                tvEbay.text = formatEbayResult(ebay)
+                tvEbay.text = EbayRepository.formatResult(ebay)
+
+                val ebayUrl = "https://www.ebay.com/sch/i.html?_nkw=${Uri.encode("$querySnapshot vinyl")}&LH_ItemCondition=3000"
+                val label = "Search on eBay ↗"
+                val span = SpannableString(label)
+                span.setSpan(object : ClickableSpan() {
+                    override fun onClick(v: View) { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(ebayUrl))) }
+                    override fun updateDrawState(ds: android.text.TextPaint) { ds.color = 0xFF8888FF.toInt(); ds.isUnderlineText = true }
+                }, 0, label.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                tvEbayLink.setText(span)
+                tvEbayLink.movementMethod = LinkMovementMethod.getInstance()
+                tvEbayLink.highlightColor = Color.TRANSPARENT
+
                 tvDiscogs.visibility = View.VISIBLE
                 tvEbay.visibility = View.VISIBLE
+                tvEbayLink.visibility = View.VISIBLE
             }
         }
 
@@ -378,31 +464,10 @@ class MainActivity : AppCompatActivity() {
         return goodEntities.take(2).mapNotNull { it.description }.joinToString(" ").takeIf { it.isNotBlank() }
     }
 
-    // ── eBay sold prices ─────────────────────────────────────────────────────────
-    private suspend fun fetchEbaySoldPrices(query: String): EbayResult {
-        val ebayKey = KeysPrefs.ebay(this)
-        if (ebayKey.isBlank()) return EbayResult(error = "No eBay App ID — add in ⚙ Settings")
-        return try {
-            val prices = ebayApi.findSoldItems(appName = ebayKey, keywords = "$query vinyl")
-                .findCompletedItemsResponse?.firstOrNull()?.searchResult?.firstOrNull()?.item
-                ?.mapNotNull { it.sellingStatus?.firstOrNull()?.convertedCurrentPrice?.firstOrNull()?.value?.toDoubleOrNull() }
-                ?: emptyList()
-            if (prices.isEmpty()) EbayResult(count = 0)
-            else EbayResult(min = prices.min(), max = prices.max(), avg = prices.average(), count = prices.size)
-        } catch (e: Exception) { Log.e("RecordPricer", "eBay error", e); EbayResult(error = e.message) }
-    }
-
-    private fun formatEbayResult(r: EbayResult) = when {
-        r.error != null -> "eBay sold: ${r.error}"
-        r.count == 0   -> "eBay sold: no recent US sales"
-        else -> "eBay sold (USA): \$%.2f – \$%.2f  avg \$%.2f  (%d sales)".format(r.min, r.max, r.avg, r.count)
-    }
-
     private fun reset() {
         setLoading(true)
         binding.candidateContainer.visibility = View.GONE
         binding.candidateContainer.removeAllViews()
-        // Hide manual search panel whenever a scan or search starts
         binding.manualSearchContainer.visibility = View.GONE
         binding.btnToggleManual.backgroundTintList =
             android.content.res.ColorStateList.valueOf(0xFF2C2C2C.toInt())

@@ -19,12 +19,14 @@ class SettingsActivity : AppCompatActivity() {
         binding.etVisionKey.setText(KeysPrefs.vision(this))
         binding.etDiscogsToken.setText(KeysPrefs.discogs(this))
         binding.etEbayAppId.setText(KeysPrefs.ebay(this))
+        binding.etEbaySecret.setText(KeysPrefs.ebaySecret(this))
 
         binding.btnSaveKeys.setOnClickListener {
-            val vision  = binding.etVisionKey.text?.toString() ?: ""
-            val discogs = binding.etDiscogsToken.text?.toString() ?: ""
-            val ebay    = binding.etEbayAppId.text?.toString() ?: ""
-            KeysPrefs.save(this, vision, discogs, ebay)
+            val vision     = binding.etVisionKey.text?.toString() ?: ""
+            val discogs    = binding.etDiscogsToken.text?.toString() ?: ""
+            val ebay       = binding.etEbayAppId.text?.toString() ?: ""
+            val ebaySecret = binding.etEbaySecret.text?.toString() ?: ""
+            KeysPrefs.save(this, vision, discogs, ebay, ebaySecret)
             Toast.makeText(this, "Keys saved", Toast.LENGTH_SHORT).show()
             finish()
         }

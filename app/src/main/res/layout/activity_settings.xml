@@ -58,7 +58,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="eBay App ID (optional)"
+            android:text="eBay Client ID / App ID (optional)"
             android:textColor="#AAAAAA"
             android:textSize="12sp"
             android:layout_marginTop="16dp"
@@ -66,6 +66,29 @@
 
         <EditText
             android:id="@+id/etEbayAppId"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="#2A2A2A"
+            android:paddingHorizontal="12dp"
+            android:inputType="textPassword"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#777777"
+            android:hint="AppName-..."
+            android:fontFamily="monospace"
+            android:textSize="14sp"
+            android:singleLine="true" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="eBay Client Secret (optional)"
+            android:textColor="#AAAAAA"
+            android:textSize="12sp"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="4dp" />
+
+        <EditText
+            android:id="@+id/etEbaySecret"
             android:layout_width="match_parent"
             android:layout_height="48dp"
             android:background="#2A2A2A"

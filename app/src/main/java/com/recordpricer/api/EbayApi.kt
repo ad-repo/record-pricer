@@ -1,46 +1,47 @@
 package com.recordpricer.api
 
+import retrofit2.http.Field
+import retrofit2.http.FormUrlEncoded
 import retrofit2.http.GET
+import retrofit2.http.Header
+import retrofit2.http.POST
 import retrofit2.http.Query
 
-interface EbayApi {
-    @GET("services/search/FindingService/v1")
-    suspend fun findSoldItems(
-        @Query("OPERATION-NAME")           operation: String = "findCompletedItems",
-        @Query("SERVICE-VERSION")          version: String = "1.0.0",
-        @Query("SECURITY-APPNAME")         appName: String,
-        @Query("RESPONSE-DATA-FORMAT")     format: String = "JSON",
-        @Query("keywords")                 keywords: String,
-        @Query(value = "itemFilter(0).name",  encoded = true) f0name: String = "SoldItemsOnly",
-        @Query(value = "itemFilter(0).value", encoded = true) f0value: String = "true",
-        @Query(value = "itemFilter(1).name",  encoded = true) f1name: String = "LocatedIn",
-        @Query(value = "itemFilter(1).value", encoded = true) f1value: String = "US",
-        @Query(value = "itemFilter(2).name",  encoded = true) f2name: String = "Currency",
-        @Query(value = "itemFilter(2).value", encoded = true) f2value: String = "USD",
-        @Query("sortOrder")                sort: String = "EndTimeSoonest",
-        @Query("paginationInput.entriesPerPage") pageSize: Int = 25
-    ): EbayFindResponse
+interface EbayAuthApi {
+    @FormUrlEncoded
+    @POST("identity/v1/oauth2/token")
+    suspend fun getToken(
+        @Header("Authorization") basicAuth: String,
+        @Field("grant_type") grantType: String = "client_credentials",
+        @Field("scope") scope: String = "https://api.ebay.com/oauth/api_scope"
+    ): EbayTokenResponse
 }
 
-data class EbayFindResponse(
-    val findCompletedItemsResponse: List<EbayResponseBody>?
+data class EbayTokenResponse(
+    val access_token: String?,
+    val expires_in: Int?
 )
-data class EbayResponseBody(
-    val searchResult: List<EbaySearchResult>?
+
+interface EbayApi {
+    @GET("buy/browse/v1/item_summary/search")
+    suspend fun findSoldItems(
+        @Header("Authorization") bearer: String,
+        @Query("q") keywords: String,
+        @Query("filter") filter: String = "itemLocationCountry:US",
+        @Query("limit") limit: Int = 25
+    ): EbayInsightsResponse
+}
+
+data class EbayInsightsResponse(
+    val itemSummaries: List<EbayItemSummary>?
 )
-data class EbaySearchResult(
-    val count: String?,
-    val item: List<EbayItem>?
+
+data class EbayItemSummary(
+    val title: String?,
+    val price: EbayItemPrice?
 )
-data class EbayItem(
-    val title: List<String>?,
-    val sellingStatus: List<EbaySellingStatus>?
-)
-data class EbaySellingStatus(
-    val convertedCurrentPrice: List<EbayPrice>?,
-    val sellingState: List<String>?
-)
-data class EbayPrice(
+
+data class EbayItemPrice(
     val value: String?,
-    val currencyId: String? = "USD"
+    val currency: String?
 )
