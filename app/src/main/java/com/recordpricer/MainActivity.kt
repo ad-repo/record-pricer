@@ -25,8 +25,6 @@ import com.google.gson.Gson
 import com.recordpricer.api.AnnotateRequest
 import com.recordpricer.api.DiscogsApi
 import com.recordpricer.api.DiscogsRelease
-import com.recordpricer.api.EbayApi
-import com.recordpricer.api.EbayAuthApi
 import com.recordpricer.api.VisionApi
 import com.recordpricer.api.VisionFeature
 import com.recordpricer.api.VisionImage
@@ -48,8 +46,6 @@ class MainActivity : AppCompatActivity() {
     private var lastEbayQuery = ""
     private var currentPhotoPath: String? = null
     private var currentSearchQuery: String = ""
-    private var lastTopRelease: DiscogsRelease? = null
-    private var lastCandidates: List<DiscogsRelease> = emptyList()
 
     private val visionApi: VisionApi by lazy {
         Retrofit.Builder().baseUrl("https://vision.googleapis.com/")
@@ -59,13 +55,6 @@ class MainActivity : AppCompatActivity() {
         Retrofit.Builder().baseUrl("https://api.discogs.com/")
             .addConverterFactory(GsonConverterFactory.create()).build().create(DiscogsApi::class.java)
     }
-    private val ebayRetrofit by lazy {
-        Retrofit.Builder().baseUrl("https://api.ebay.com/")
-            .addConverterFactory(GsonConverterFactory.create()).build()
-    }
-    private val ebayAuthApi: EbayAuthApi by lazy { ebayRetrofit.create(EbayAuthApi::class.java) }
-    private val ebayApi: EbayApi by lazy { ebayRetrofit.create(EbayApi::class.java) }
-    private var ebayTokenCache: Pair<String, Long>? = null  // token → expiry ms
 
     private val cameraLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode != RESULT_OK) return@registerForActivityResult
@@ -216,8 +205,6 @@ class MainActivity : AppCompatActivity() {
             android.content.res.ColorStateList.valueOf(0xFF2C2C2C.toInt())
         if (candidates.isEmpty()) { setStatus("No Discogs matches found"); return }
 
-        lastTopRelease = candidates.firstOrNull()
-        lastCandidates = candidates
         candidates.forEachIndexed { i, release ->
             binding.candidateContainer.addView(buildCandidateCard(release, i == 0))
         }
@@ -390,9 +377,10 @@ class MainActivity : AppCompatActivity() {
             tvDiscogs.visibility = View.GONE
             tvEbay.visibility = View.GONE
 
+            val querySnapshot = lastEbayQuery
             lifecycleScope.launch {
                 val statsDeferred = async { runCatching { discogsApi.marketplaceStats(id, KeysPrefs.discogs(this@MainActivity)) }.getOrNull() }
-                val ebayDeferred  = async { fetchEbaySoldPrices(lastEbayQuery) }
+                val ebayDeferred  = async { EbayRepository.fetchPrices(this@MainActivity, querySnapshot) }
                 val stats = statsDeferred.await()
                 val ebay  = ebayDeferred.await()
 
@@ -401,9 +389,9 @@ class MainActivity : AppCompatActivity() {
                 tvDiscogs.text = if (forSale > 0 && stats?.lowest_price?.value != null)
                     "Discogs: from \$%.2f  ($forSale for sale)".format(stats.lowest_price.value)
                 else "Discogs: no current listings"
-                tvEbay.text = formatEbayResult(ebay)
+                tvEbay.text = EbayRepository.formatResult(ebay)
 
-                val ebayUrl = "https://www.ebay.com/sch/i.html?_nkw=${Uri.encode("$lastEbayQuery vinyl")}&LH_ItemCondition=3000"
+                val ebayUrl = "https://www.ebay.com/sch/i.html?_nkw=${Uri.encode("$querySnapshot vinyl")}&LH_ItemCondition=3000"
                 val label = "Search on eBay ↗"
                 val span = SpannableString(label)
                 span.setSpan(object : ClickableSpan() {
@@ -472,44 +460,6 @@ class MainActivity : AppCompatActivity() {
         return goodEntities.take(2).mapNotNull { it.description }.joinToString(" ").takeIf { it.isNotBlank() }
     }
 
-    // ── eBay sold prices ─────────────────────────────────────────────────────────
-    private suspend fun fetchEbaySoldPrices(query: String): EbayResult {
-        val clientId     = KeysPrefs.ebay(this)
-        val clientSecret = KeysPrefs.ebaySecret(this)
-        if (clientId.isBlank() || clientSecret.isBlank())
-            return EbayResult(error = "No eBay credentials — add Client ID + Secret in ⚙ Settings")
-        return try {
-            val token = getEbayToken(clientId, clientSecret)
-                ?: return EbayResult(error = "eBay auth failed — check Client ID/Secret")
-            val prices = ebayApi.findSoldItems(bearer = "Bearer $token", keywords = "$query vinyl")
-                .itemSummaries
-                ?.mapNotNull { it.price?.value?.toDoubleOrNull() }
-                ?: emptyList()
-            if (prices.isEmpty()) EbayResult(count = 0)
-            else EbayResult(min = prices.min(), max = prices.max(), avg = prices.average(), count = prices.size)
-        } catch (e: retrofit2.HttpException) {
-            val body = e.response()?.errorBody()?.string() ?: e.message
-            Log.e("RecordPricer", "eBay HTTP ${e.code()}: $body", e)
-            EbayResult(error = "eBay ${e.code()}: $body")
-        } catch (e: Exception) { Log.e("RecordPricer", "eBay error", e); EbayResult(error = e.message) }
-    }
-
-    private suspend fun getEbayToken(clientId: String, clientSecret: String): String? {
-        val now = System.currentTimeMillis()
-        ebayTokenCache?.let { (token, expiry) -> if (now < expiry) return token }
-        val credentials = Base64.encodeToString("$clientId:$clientSecret".toByteArray(), Base64.NO_WRAP)
-        val response = ebayAuthApi.getToken("Basic $credentials")
-        val token = response.access_token ?: return null
-        ebayTokenCache = Pair(token, now + ((response.expires_in ?: 7200) - 300) * 1000L)
-        return token
-    }
-
-    private fun formatEbayResult(r: EbayResult) = when {
-        r.error != null -> "eBay: ${r.error}"
-        r.count == 0   -> "eBay: no US listings found"
-        else -> "eBay listings (USA): \$%.2f – \$%.2f  avg \$%.2f  (%d listings)".format(r.min, r.max, r.avg, r.count)
-    }
-
     private fun reset() {
         setLoading(true)
         binding.candidateContainer.visibility = View.GONE
@@ -517,8 +467,6 @@ class MainActivity : AppCompatActivity() {
         binding.manualSearchContainer.visibility = View.GONE
         binding.btnToggleManual.backgroundTintList =
             android.content.res.ColorStateList.valueOf(0xFF2C2C2C.toInt())
-        lastTopRelease = null
-        lastCandidates = emptyList()
     }
 
     private fun setLoading(on: Boolean) { binding.progressBar.visibility = if (on) View.VISIBLE else View.GONE }

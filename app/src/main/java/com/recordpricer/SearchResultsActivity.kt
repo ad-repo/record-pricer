@@ -21,8 +21,6 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.recordpricer.api.DiscogsApi
 import com.recordpricer.api.DiscogsRelease
-import com.recordpricer.api.EbayApi
-import com.recordpricer.api.EbayAuthApi
 import com.recordpricer.databinding.ActivitySearchResultsBinding
 import com.recordpricer.db.AppDatabase
 import com.recordpricer.db.FavoriteEntity
@@ -45,13 +43,6 @@ class SearchResultsActivity : AppCompatActivity() {
         Retrofit.Builder().baseUrl("https://api.discogs.com/")
             .addConverterFactory(GsonConverterFactory.create()).build().create(DiscogsApi::class.java)
     }
-    private val ebayRetrofit by lazy {
-        Retrofit.Builder().baseUrl("https://api.ebay.com/")
-            .addConverterFactory(GsonConverterFactory.create()).build()
-    }
-    private val ebayAuthApi: EbayAuthApi by lazy { ebayRetrofit.create(EbayAuthApi::class.java) }
-    private val ebayApi: EbayApi by lazy { ebayRetrofit.create(EbayApi::class.java) }
-    private var ebayTokenCache: Pair<String, Long>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -237,9 +228,10 @@ class SearchResultsActivity : AppCompatActivity() {
             tvEbay.visibility = View.GONE
             tvEbayLink.visibility = View.GONE
 
+            val querySnapshot = queryString
             lifecycleScope.launch {
                 val statsDeferred = async { runCatching { discogsApi.marketplaceStats(id, KeysPrefs.discogs(this@SearchResultsActivity)) }.getOrNull() }
-                val ebayDeferred  = async { fetchEbaySoldPrices(queryString) }
+                val ebayDeferred  = async { EbayRepository.fetchPrices(this@SearchResultsActivity, querySnapshot) }
                 val stats = statsDeferred.await()
                 val ebay  = ebayDeferred.await()
 
@@ -248,7 +240,7 @@ class SearchResultsActivity : AppCompatActivity() {
                 tvDiscogs.text = if (forSale > 0 && stats?.lowest_price?.value != null)
                     "Discogs: from \$%.2f  ($forSale for sale)".format(stats.lowest_price.value)
                 else "Discogs: no current listings"
-                tvEbay.text = formatEbayResult(ebay)
+                tvEbay.text = EbayRepository.formatResult(ebay)
 
                 val ebayUrl = "https://www.ebay.com/sch/i.html?_nkw=${Uri.encode("$queryString vinyl")}&LH_ItemCondition=3000"
                 val label = "Search on eBay ↗"
@@ -279,43 +271,6 @@ class SearchResultsActivity : AppCompatActivity() {
         if (!formats.isNullOrBlank()) parts += formats
         r.catno?.takeIf { it.isNotBlank() && it != "none" }?.let { parts += it }
         return parts.joinToString("  ·  ")
-    }
-
-    private suspend fun fetchEbaySoldPrices(query: String): EbayResult {
-        val clientId     = KeysPrefs.ebay(this)
-        val clientSecret = KeysPrefs.ebaySecret(this)
-        if (clientId.isBlank() || clientSecret.isBlank())
-            return EbayResult(error = "No eBay credentials — add Client ID + Secret in ⚙ Settings")
-        return try {
-            val token = getEbayToken(clientId, clientSecret)
-                ?: return EbayResult(error = "eBay auth failed — check Client ID/Secret")
-            val prices = ebayApi.findSoldItems(bearer = "Bearer $token", keywords = "$query vinyl")
-                .itemSummaries
-                ?.mapNotNull { it.price?.value?.toDoubleOrNull() }
-                ?: emptyList()
-            if (prices.isEmpty()) EbayResult(count = 0)
-            else EbayResult(min = prices.min(), max = prices.max(), avg = prices.average(), count = prices.size)
-        } catch (e: retrofit2.HttpException) {
-            val body = e.response()?.errorBody()?.string() ?: e.message
-            Log.e("RecordPricer", "eBay HTTP ${e.code()}: $body", e)
-            EbayResult(error = "eBay ${e.code()}: $body")
-        } catch (e: Exception) { Log.e("RecordPricer", "eBay error", e); EbayResult(error = e.message) }
-    }
-
-    private suspend fun getEbayToken(clientId: String, clientSecret: String): String? {
-        val now = System.currentTimeMillis()
-        ebayTokenCache?.let { (token, expiry) -> if (now < expiry) return token }
-        val credentials = android.util.Base64.encodeToString("$clientId:$clientSecret".toByteArray(), android.util.Base64.NO_WRAP)
-        val response = ebayAuthApi.getToken("Basic $credentials")
-        val token = response.access_token ?: return null
-        ebayTokenCache = Pair(token, now + ((response.expires_in ?: 7200) - 300) * 1000L)
-        return token
-    }
-
-    private fun formatEbayResult(r: EbayResult) = when {
-        r.error != null -> "eBay: ${r.error}"
-        r.count == 0   -> "eBay: no US listings found"
-        else -> "eBay listings (USA): \$%.2f – \$%.2f  avg \$%.2f  (%d listings)".format(r.min, r.max, r.avg, r.count)
     }
 
     private val Int.dp get() = (this * resources.displayMetrics.density).toInt()
