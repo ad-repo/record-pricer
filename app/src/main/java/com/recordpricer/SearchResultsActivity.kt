@@ -196,6 +196,9 @@ class SearchResultsActivity : AppCompatActivity() {
         val tvDiscogs = TextView(this).apply {
             textSize = 14f; setTextColor(0xFF03DAC6.toInt()); visibility = View.GONE
         }
+        val tvDiscogsLink = TextView(this).apply {
+            textSize = 12f; setPadding(0, 4.dp, 0, 0); visibility = View.GONE
+        }
         val tvEbay = TextView(this).apply {
             textSize = 14f; setTextColor(0xFFCF6679.toInt()); setPadding(0, 6.dp, 0, 0); visibility = View.GONE
         }
@@ -206,6 +209,7 @@ class SearchResultsActivity : AppCompatActivity() {
         inner.addView(divider)
         inner.addView(pricingBar)
         inner.addView(tvDiscogs)
+        inner.addView(tvDiscogsLink)
         inner.addView(tvEbay)
         inner.addView(tvEbayLink)
         card.addView(inner)
@@ -216,6 +220,7 @@ class SearchResultsActivity : AppCompatActivity() {
                 divider.visibility = View.GONE
                 pricingBar.visibility = View.GONE
                 tvDiscogs.visibility = View.GONE
+                tvDiscogsLink.visibility = View.GONE
                 tvEbay.visibility = View.GONE
                 tvEbayLink.visibility = View.GONE
                 card.setCardBackgroundColor(0xFF1E1E1E.toInt())
@@ -225,6 +230,7 @@ class SearchResultsActivity : AppCompatActivity() {
             divider.visibility = View.VISIBLE
             pricingBar.visibility = View.VISIBLE
             tvDiscogs.visibility = View.GONE
+            tvDiscogsLink.visibility = View.GONE
             tvEbay.visibility = View.GONE
             tvEbayLink.visibility = View.GONE
 
@@ -240,20 +246,33 @@ class SearchResultsActivity : AppCompatActivity() {
                 tvDiscogs.text = if (forSale > 0 && stats?.lowest_price?.value != null)
                     "Discogs: from \$%.2f  ($forSale for sale)".format(stats.lowest_price.value)
                 else "Discogs: no current listings"
+
+                val salesHistoryUrl = "https://www.discogs.com/sell/history/$id"
+                val discogsLabel = "Sales history on Discogs ↗"
+                val discogsSpan = SpannableString(discogsLabel)
+                discogsSpan.setSpan(object : ClickableSpan() {
+                    override fun onClick(v: View) { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(salesHistoryUrl))) }
+                    override fun updateDrawState(ds: android.text.TextPaint) { ds.color = 0xFF8888FF.toInt(); ds.isUnderlineText = true }
+                }, 0, discogsLabel.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                tvDiscogsLink.setText(discogsSpan)
+                tvDiscogsLink.movementMethod = LinkMovementMethod.getInstance()
+                tvDiscogsLink.highlightColor = Color.TRANSPARENT
+
                 tvEbay.text = EbayRepository.formatResult(ebay)
 
                 val ebayUrl = "https://www.ebay.com/sch/i.html?_nkw=${Uri.encode("$queryString vinyl")}&LH_ItemCondition=3000"
-                val label = "Search on eBay ↗"
-                val span = SpannableString(label)
-                span.setSpan(object : ClickableSpan() {
+                val ebayLabel = "Search on eBay ↗"
+                val ebaySpan = SpannableString(ebayLabel)
+                ebaySpan.setSpan(object : ClickableSpan() {
                     override fun onClick(v: View) { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(ebayUrl))) }
                     override fun updateDrawState(ds: android.text.TextPaint) { ds.color = 0xFF8888FF.toInt(); ds.isUnderlineText = true }
-                }, 0, label.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                tvEbayLink.setText(span)
+                }, 0, ebayLabel.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                tvEbayLink.setText(ebaySpan)
                 tvEbayLink.movementMethod = LinkMovementMethod.getInstance()
                 tvEbayLink.highlightColor = Color.TRANSPARENT
 
                 tvDiscogs.visibility = View.VISIBLE
+                tvDiscogsLink.visibility = View.VISIBLE
                 tvEbay.visibility = View.VISIBLE
                 tvEbayLink.visibility = View.VISIBLE
             }
