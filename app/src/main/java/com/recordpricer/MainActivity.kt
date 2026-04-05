@@ -76,6 +76,10 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        binding.btnToggleManual.text = "🔍"
+        binding.btnHistory.text      = "🕐"
+        binding.btnSettings.text     = "🔧"
+
         binding.btnScan.setOnClickListener {
             cameraLauncher.launch(Intent(this, CameraActivity::class.java))
         }

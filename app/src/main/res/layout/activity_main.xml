@@ -20,27 +20,39 @@
                 android:id="@+id/btnScan"
                 android:layout_width="0dp"
                 android:layout_weight="1"
-                android:layout_height="56dp"
+                android:layout_height="52dp"
                 android:text="SCAN RECORD"
-                android:textSize="15sp"
-                android:backgroundTint="#BB86FC" />
+                android:textSize="14sp"
+                android:backgroundTint="#CC0000" />
 
             <Button
                 android:id="@+id/btnToggleManual"
-                android:layout_width="wrap_content"
-                android:layout_height="56dp"
-                android:layout_marginStart="8dp"
-                android:text="MANUAL"
-                android:textSize="13sp"
+                android:layout_width="0dp"
+                android:layout_weight="0.38"
+                android:layout_height="52dp"
+                android:layout_marginStart="6dp"
+                android:text="⌨"
+                android:textSize="20sp"
+                android:backgroundTint="#2C2C2C" />
+
+            <Button
+                android:id="@+id/btnHistory"
+                android:layout_width="0dp"
+                android:layout_weight="0.38"
+                android:layout_height="52dp"
+                android:layout_marginStart="6dp"
+                android:text="🕐"
+                android:textSize="20sp"
                 android:backgroundTint="#2C2C2C" />
 
             <Button
                 android:id="@+id/btnSettings"
-                android:layout_width="wrap_content"
-                android:layout_height="56dp"
-                android:layout_marginStart="8dp"
-                android:text="⚙"
-                android:textSize="18sp"
+                android:layout_width="0dp"
+                android:layout_weight="0.38"
+                android:layout_height="52dp"
+                android:layout_marginStart="6dp"
+                android:text="⚙️"
+                android:textSize="20sp"
                 android:backgroundTint="#2C2C2C" />
 
         </LinearLayout>
@@ -119,16 +131,6 @@
                 android:backgroundTint="#BB86FC" />
 
         </LinearLayout>
-
-        <!-- History button -->
-        <Button
-            android:id="@+id/btnHistory"
-            android:layout_width="wrap_content"
-            android:layout_height="44dp"
-            android:layout_marginTop="12dp"
-            android:text="HISTORY"
-            android:textSize="12sp"
-            android:backgroundTint="#2C2C2C" />
 
         <!-- Ranked candidate list — populated programmatically -->
         <LinearLayout
