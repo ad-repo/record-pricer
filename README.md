@@ -1,6 +1,10 @@
 # Record Pricer
 
-Android app that identifies vinyl records and fetches current market prices from Discogs and eBay sold listings.
+## Android app that identifies vinyl records and fetches current market prices from Discogs and eBay sold listings.
+<p>
+  <img src="https://github.com/user-attachments/assets/6e13bc8f-8f6f-4f73-9123-e023d5af1568" width="45%" />
+  <img src="https://github.com/user-attachments/assets/6e1e56f2-0d9c-4dee-a63c-459351a57b6a" width="45%" />
+</p>
 
 ## How it works
 
