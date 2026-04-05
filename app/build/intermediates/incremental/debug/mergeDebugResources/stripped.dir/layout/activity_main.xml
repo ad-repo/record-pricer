@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#121212">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnScan"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="56dp"
+                android:text="SCAN RECORD"
+                android:textSize="15sp"
+                android:backgroundTint="#BB86FC" />
+
+            <Button
+                android:id="@+id/btnToggleManual"
+                android:layout_width="wrap_content"
+                android:layout_height="56dp"
+                android:layout_marginStart="8dp"
+                android:text="MANUAL"
+                android:textSize="13sp"
+                android:backgroundTint="#2C2C2C" />
+
+            <Button
+                android:id="@+id/btnSettings"
+                android:layout_width="wrap_content"
+                android:layout_height="56dp"
+                android:layout_marginStart="8dp"
+                android:text="⚙"
+                android:textSize="18sp"
+                android:backgroundTint="#2C2C2C" />
+
+        </LinearLayout>
+
+        <ImageView
+            android:id="@+id/imagePreview"
+            android:layout_width="match_parent"
+            android:layout_height="240dp"
+            android:layout_marginTop="16dp"
+            android:scaleType="fitCenter"
+            android:visibility="gone"
+            android:background="#1E1E1E" />
+
+        <ProgressBar
+            android:id="@+id/progressBar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="16dp"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center"
+            android:textColor="#AAAAAA"
+            android:textSize="14sp" />
+
+        <!-- Manual search (only visible when MANUAL is toggled on) -->
+        <LinearLayout
+            android:id="@+id/manualSearchContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="12dp"
+            android:visibility="gone">
+
+            <EditText
+                android:id="@+id/etArtist"
+                android:saveEnabled="false"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:background="#2A2A2A"
+                android:paddingHorizontal="12dp"
+                android:hint="Artist"
+                android:textColorHint="#777777"
+                android:textColor="#FFFFFF"
+                android:textSize="15sp"
+                android:inputType="text"
+                android:singleLine="true" />
+
+            <EditText
+                android:id="@+id/etAlbum"
+                android:saveEnabled="false"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="8dp"
+                android:background="#2A2A2A"
+                android:paddingHorizontal="12dp"
+                android:hint="Album"
+                android:textColorHint="#777777"
+                android:textColor="#FFFFFF"
+                android:textSize="15sp"
+                android:inputType="text"
+                android:singleLine="true"
+                android:imeOptions="actionSearch" />
+
+            <Button
+                android:id="@+id/btnManualSearch"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="8dp"
+                android:text="SEARCH"
+                android:backgroundTint="#BB86FC" />
+
+        </LinearLayout>
+
+        <!-- Ranked candidate list — populated programmatically -->
+        <LinearLayout
+            android:id="@+id/candidateContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="12dp"
+            android:visibility="gone" />
+
+
+    </LinearLayout>
+</ScrollView>

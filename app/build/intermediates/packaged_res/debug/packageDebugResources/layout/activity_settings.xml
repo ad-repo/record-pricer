@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#121212">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Google Vision API Key"
+            android:textColor="#AAAAAA"
+            android:textSize="12sp"
+            android:layout_marginBottom="4dp" />
+
+        <EditText
+            android:id="@+id/etVisionKey"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="#2A2A2A"
+            android:paddingHorizontal="12dp"
+            android:inputType="textPassword"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#777777"
+            android:hint="AIza..."
+            android:fontFamily="monospace"
+            android:textSize="14sp"
+            android:singleLine="true" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Discogs Personal Access Token"
+            android:textColor="#AAAAAA"
+            android:textSize="12sp"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="4dp" />
+
+        <EditText
+            android:id="@+id/etDiscogsToken"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="#2A2A2A"
+            android:paddingHorizontal="12dp"
+            android:inputType="textPassword"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#777777"
+            android:hint="token"
+            android:fontFamily="monospace"
+            android:textSize="14sp"
+            android:singleLine="true" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="eBay App ID (optional)"
+            android:textColor="#AAAAAA"
+            android:textSize="12sp"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="4dp" />
+
+        <EditText
+            android:id="@+id/etEbayAppId"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="#2A2A2A"
+            android:paddingHorizontal="12dp"
+            android:inputType="textPassword"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#777777"
+            android:hint="AppName-..."
+            android:fontFamily="monospace"
+            android:textSize="14sp"
+            android:singleLine="true" />
+
+        <Button
+            android:id="@+id/btnSaveKeys"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginTop="28dp"
+            android:text="SAVE"
+            android:backgroundTint="#BB86FC" />
+
+    </LinearLayout>
+</ScrollView>
