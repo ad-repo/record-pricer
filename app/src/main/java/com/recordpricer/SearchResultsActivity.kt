@@ -38,6 +38,7 @@ class SearchResultsActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivitySearchResultsBinding
     private var queryString = ""
+    private var ebayFormat  = "vinyl"
 
     private val discogsApi: DiscogsApi by lazy {
         Retrofit.Builder().baseUrl("https://api.discogs.com/")
@@ -57,6 +58,7 @@ class SearchResultsActivity : AppCompatActivity() {
                 .savedSearchDao().getById(searchId) ?: run { finish(); return@launch }
 
             queryString = entity.queryString
+            ebayFormat  = if (entity.format.equals("CD", ignoreCase = true)) "cd" else "vinyl"
             supportActionBar?.title = entity.queryString
 
             // Show photo if available
@@ -163,6 +165,7 @@ class SearchResultsActivity : AppCompatActivity() {
             "https://www.discogs.com${release.uri}"
         else
             "https://www.discogs.com/release/${release.id}"
+        val ebayTextUrl = "https://www.ebay.com/sch/i.html?_nkw=${Uri.encode("$queryString $ebayFormat")}&LH_ItemCondition=3000"
         inner.addView(TextView(this).apply {
             val label = "Open on Discogs ↗"
             val span = SpannableString(label)
@@ -180,6 +183,24 @@ class SearchResultsActivity : AppCompatActivity() {
             highlightColor = Color.TRANSPARENT
             textSize = 12f
             setPadding(0, 6.dp, 0, 0)
+        })
+
+        // Text button
+        inner.addView(TextView(this).apply {
+            text = "Text ↗"
+            setTextColor(0xFF8888FF.toInt())
+            paintFlags = paintFlags or android.graphics.Paint.UNDERLINE_TEXT_FLAG
+            textSize = 12f
+            setPadding(0, 4.dp, 0, 0)
+            setOnClickListener {
+                val body = "${release.title ?: "Record"}\nDiscogs: $discogsUrl\neBay: $ebayTextUrl"
+                startActivity(Intent.createChooser(
+                    Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, body)
+                    }, "Text via…"
+                ))
+            }
         })
 
         // Pricing section — hidden until tapped
@@ -237,7 +258,7 @@ class SearchResultsActivity : AppCompatActivity() {
             val querySnapshot = queryString
             lifecycleScope.launch {
                 val statsDeferred = async { runCatching { discogsApi.marketplaceStats(id, KeysPrefs.discogs(this@SearchResultsActivity)) }.getOrNull() }
-                val ebayDeferred  = async { EbayRepository.fetchPrices(this@SearchResultsActivity, querySnapshot) }
+                val ebayDeferred  = async { EbayRepository.fetchPrices(this@SearchResultsActivity, querySnapshot, ebayFormat) }
                 val stats = statsDeferred.await()
                 val ebay  = ebayDeferred.await()
 
@@ -260,7 +281,7 @@ class SearchResultsActivity : AppCompatActivity() {
 
                 tvEbay.text = EbayRepository.formatResult(ebay)
 
-                val ebayUrl = "https://www.ebay.com/sch/i.html?_nkw=${Uri.encode("$queryString vinyl")}&LH_ItemCondition=3000"
+                val ebayUrl = "https://www.ebay.com/sch/i.html?_nkw=${Uri.encode("$queryString $ebayFormat")}&LH_ItemCondition=3000"
                 val ebayLabel = "Search on eBay ↗"
                 val ebaySpan = SpannableString(ebayLabel)
                 ebaySpan.setSpan(object : ClickableSpan() {

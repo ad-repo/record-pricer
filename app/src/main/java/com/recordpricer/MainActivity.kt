@@ -44,6 +44,8 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private var lastEbayQuery = ""
+    private var lastEbayFormat = "vinyl"
+    private var currentFormat  = "Vinyl"
     private var currentPhotoPath: String? = null
     private var currentSearchQuery: String = ""
 
@@ -119,6 +121,7 @@ class MainActivity : AppCompatActivity() {
         // Hide keyboard
         val imm = getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
         imm.hideSoftInputFromWindow(binding.etAlbum.windowToken, 0)
+        setFormatFields()
         lastEbayQuery = query
         currentSearchQuery = query
         currentPhotoPath = null
@@ -127,8 +130,9 @@ class MainActivity : AppCompatActivity() {
         reset(); setStatus("Searching...")
         lifecycleScope.launch {
             try {
-                val results = discogsApi.search(query = query, token = KeysPrefs.discogs(this@MainActivity))
-                    .results?.let { vinylOnly(it) } ?: emptyList()
+                val raw = discogsApi.search(query = query, format = currentFormat, token = KeysPrefs.discogs(this@MainActivity))
+                    .results ?: emptyList()
+                val results = applyFormatFilter(raw)
                 showCandidates(results)
             } catch (e: Exception) {
                 Log.e("RecordPricer", "Manual search error", e)
@@ -137,13 +141,25 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun selectedIsCD() = binding.rgFormat.checkedRadioButtonId == R.id.rbCd
+
+    private fun applyFormatFilter(results: List<DiscogsRelease>) =
+        if (selectedIsCD()) cdOnly(results) else vinylOnly(results)
+
+    private fun setFormatFields() {
+        val isCD = selectedIsCD()
+        currentFormat  = if (isCD) "CD" else "Vinyl"
+        lastEbayFormat = if (isCD) "cd" else "vinyl"
+    }
+
     // ── Barcode path ─────────────────────────────────────────────────────────────
     private fun lookupByBarcode(barcode: String) {
         reset(); setStatus("Looking up barcode...")
+        setFormatFields()
         lifecycleScope.launch {
             try {
-                val results = discogsApi.search(query = barcode, type = "release", token = KeysPrefs.discogs(this@MainActivity))
-                    .results?.let { vinylOnly(it) } ?: emptyList()
+                val results = discogsApi.search(query = barcode, type = "release", format = currentFormat, token = KeysPrefs.discogs(this@MainActivity))
+                    .results?.let { applyFormatFilter(it) } ?: emptyList()
                 lastEbayQuery = barcode
                 currentSearchQuery = barcode
                 currentPhotoPath = null
@@ -158,6 +174,7 @@ class MainActivity : AppCompatActivity() {
     // ── Photo path ───────────────────────────────────────────────────────────────
     private fun analyzePhoto(photoPath: String) {
         reset(); setStatus("Identifying album...")
+        setFormatFields()
         lifecycleScope.launch {
             try {
                 val query = identifyAlbum(photoPath)
@@ -170,8 +187,8 @@ class MainActivity : AppCompatActivity() {
                 lastEbayQuery = query
                 currentSearchQuery = query
                 currentPhotoPath = photoPath
-                val results = discogsApi.search(query = query, token = KeysPrefs.discogs(this@MainActivity))
-                    .results?.let { vinylOnly(it) } ?: emptyList()
+                val results = discogsApi.search(query = query, format = currentFormat, token = KeysPrefs.discogs(this@MainActivity))
+                    .results?.let { applyFormatFilter(it) } ?: emptyList()
                 showCandidates(results)
             } catch (e: Exception) {
                 Log.e("RecordPricer", "Analyze error", e)
@@ -200,6 +217,15 @@ class MainActivity : AppCompatActivity() {
             }.thenByDescending { it.community?.have ?: 0 })
     }
 
+    private fun cdOnly(results: List<DiscogsRelease>): List<DiscogsRelease> {
+        return results
+            .filter { release ->
+                val formats = release.format?.map { it.lowercase() } ?: emptyList()
+                formats.any { it.contains("cd") || it.contains("compact disc") }
+            }
+            .sortedByDescending { it.community?.have ?: 0 }
+    }
+
     // ── Build ranked candidate cards ─────────────────────────────────────────────
     private fun showCandidates(candidates: List<DiscogsRelease>) {
         setLoading(false); setStatus("")
@@ -226,7 +252,8 @@ class MainActivity : AppCompatActivity() {
                     topTitle     = top?.title,
                     topDiscogsId = top?.id,
                     topUri       = top?.uri,
-                    resultsJson  = Gson().toJson(candidates)
+                    resultsJson  = Gson().toJson(candidates),
+                    format       = currentFormat
                 )
             )
         }
@@ -316,6 +343,7 @@ class MainActivity : AppCompatActivity() {
             "https://www.discogs.com${release.uri}"
         else
             "https://www.discogs.com/release/${release.id}"
+        val ebayTextUrl = "https://www.ebay.com/sch/i.html?_nkw=${Uri.encode("$lastEbayQuery $lastEbayFormat")}&LH_ItemCondition=3000"
         inner.addView(TextView(this).apply {
             val label = "Open on Discogs ↗"
             val span = SpannableString(label)
@@ -333,6 +361,24 @@ class MainActivity : AppCompatActivity() {
             highlightColor = Color.TRANSPARENT
             textSize = 12f
             setPadding(0, 6.dp, 0, 0)
+        })
+
+        // Text button
+        inner.addView(TextView(this).apply {
+            text = "Text ↗"
+            setTextColor(0xFF8888FF.toInt())
+            paintFlags = paintFlags or android.graphics.Paint.UNDERLINE_TEXT_FLAG
+            textSize = 12f
+            setPadding(0, 4.dp, 0, 0)
+            setOnClickListener {
+                val body = "${release.title ?: "Record"}\nDiscogs: $discogsUrl\neBay: $ebayTextUrl"
+                startActivity(Intent.createChooser(
+                    Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, body)
+                    }, "Text via…"
+                ))
+            }
         })
 
         // Pricing section — hidden until tapped
@@ -381,10 +427,11 @@ class MainActivity : AppCompatActivity() {
             tvDiscogs.visibility = View.GONE
             tvEbay.visibility = View.GONE
 
-            val querySnapshot = lastEbayQuery
+            val querySnapshot  = lastEbayQuery
+            val formatSnapshot = lastEbayFormat
             lifecycleScope.launch {
                 val statsDeferred = async { runCatching { discogsApi.marketplaceStats(id, KeysPrefs.discogs(this@MainActivity)) }.getOrNull() }
-                val ebayDeferred  = async { EbayRepository.fetchPrices(this@MainActivity, querySnapshot) }
+                val ebayDeferred  = async { EbayRepository.fetchPrices(this@MainActivity, querySnapshot, formatSnapshot) }
                 val stats = statsDeferred.await()
                 val ebay  = ebayDeferred.await()
 
@@ -395,7 +442,7 @@ class MainActivity : AppCompatActivity() {
                 else "Discogs: no current listings"
                 tvEbay.text = EbayRepository.formatResult(ebay)
 
-                val ebayUrl = "https://www.ebay.com/sch/i.html?_nkw=${Uri.encode("$querySnapshot vinyl")}&LH_ItemCondition=3000"
+                val ebayUrl = "https://www.ebay.com/sch/i.html?_nkw=${Uri.encode("$querySnapshot $formatSnapshot")}&LH_ItemCondition=3000"
                 val label = "Search on eBay ↗"
                 val span = SpannableString(label)
                 span.setSpan(object : ClickableSpan() {
