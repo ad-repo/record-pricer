@@ -18,7 +18,7 @@ object EbayRepository {
     private val api     by lazy { retrofit.create(EbayApi::class.java) }
     private var tokenCache: Pair<String, Long>? = null  // token → expiry ms
 
-    suspend fun fetchPrices(ctx: Context, query: String): EbayResult {
+    suspend fun fetchPrices(ctx: Context, query: String, formatSuffix: String = "vinyl"): EbayResult {
         val clientId     = KeysPrefs.ebay(ctx)
         val clientSecret = KeysPrefs.ebaySecret(ctx)
         if (clientId.isBlank() || clientSecret.isBlank())
@@ -26,7 +26,7 @@ object EbayRepository {
         return try {
             val token = getToken(clientId, clientSecret)
                 ?: return EbayResult(error = "eBay auth failed — check Client ID/Secret")
-            val prices = api.findSoldItems(bearer = "Bearer $token", keywords = "$query vinyl")
+            val prices = api.findSoldItems(bearer = "Bearer $token", keywords = "$query $formatSuffix")
                 .itemSummaries
                 ?.mapNotNull { it.price?.value?.toDoubleOrNull() }
                 ?: emptyList()

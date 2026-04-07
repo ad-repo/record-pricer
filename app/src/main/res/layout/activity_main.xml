@@ -57,6 +57,33 @@
 
         </LinearLayout>
 
+        <RadioGroup
+            android:id="@+id/rgFormat"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="horizontal">
+
+            <RadioButton
+                android:id="@+id/rbVinyl"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Vinyl"
+                android:checked="true"
+                android:textColor="#FFFFFF"
+                android:buttonTint="#BB86FC" />
+
+            <RadioButton
+                android:id="@+id/rbCd"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="24dp"
+                android:text="CD"
+                android:textColor="#FFFFFF"
+                android:buttonTint="#BB86FC" />
+
+        </RadioGroup>
+
         <ImageView
             android:id="@+id/imagePreview"
             android:layout_width="match_parent"

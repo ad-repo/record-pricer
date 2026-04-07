@@ -29,7 +29,7 @@ class SavedSearchAdapter(
         val entry = items[position]
         val b = holder.binding
 
-        b.tvTitle.text = entry.queryString
+        b.tvTitle.text = entry.topTitle ?: entry.queryString
         b.tvQuery.text = dateFmt.format(Date(entry.savedAt))
         b.tvFavStar.text = "▶"
 

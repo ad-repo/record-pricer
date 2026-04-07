@@ -19,5 +19,6 @@ data class SavedSearchEntity(
     val topDiscogsId: Int?,
     val topUri: String?,
     val resultsJson: String,  // JSON array of full DiscogsRelease objects
+    val format: String = "Vinyl",
     val savedAt: Long = System.currentTimeMillis()
 )
